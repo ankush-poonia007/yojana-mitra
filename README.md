@@ -146,7 +146,7 @@ yojana-mitra/
 **Prerequisites:** Node.js (LTS), Python 3, a Supabase project, and a Gemini API key.
 
 ```bash
-git clone https://github.com/<your-username>/yojana-mitra.git
+git clone https://github.com/ankush_poonia007/yojana-mitra.git
 cd yojana-mitra
 cp .env.example .env            # then add your own keys; never commit .env
 
