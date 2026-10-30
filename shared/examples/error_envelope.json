@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human-readable message",
+    "retryable": false,
+    "details": {}
+  }
+}

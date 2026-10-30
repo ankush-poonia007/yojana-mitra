@@ -166,6 +166,8 @@ npm run dev
 
 **Environment variables (names only):** `APP_ENV`, `APP_PORT`, `CORS_ORIGINS`, `GEMINI_API_KEY`, `GEMINI_MODEL_HIGH`, `GEMINI_MODEL_MID`, `GEMINI_MODEL_LITE`, `STT_PROVIDER`, `STT_API_KEY`, `STT_MODEL`, `TTS_PROVIDER`, `TTS_API_KEY`, `TTS_MODEL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, `MOCK_MODE`, `LOG_LEVEL`; frontend: `VITE_API_BASE_URL`, `VITE_MOCK_MODE`. The service-role key and provider keys must stay on the backend.
 
+**Main branch rule:** `main` must always run and remain in a working, deployable state. (Team feature branch assignments are pending team agreement.)
+
 ## API overview
 
 Base path `/api/v1`. Text and voice share one conversation state and one response structure; errors use a single error envelope. Full contract in `shared/api-contract.md`.

@@ -1,0 +1,17 @@
+{
+  "session_id": "sess_demo_001",
+  "turn_id": "turn_003",
+  "status": "awaiting_information",
+  "language": "hi",
+  "answer": {
+    "text": "मैं आपकी पात्रता समझने में मदद करूंगा। क्या आपके घर में पहले से LPG कनेक्शन है?"
+  },
+  "assessment": null,
+  "card": null,
+  "sources": [],
+  "speech": {
+    "status": "generated",
+    "content_type": "audio/mpeg",
+    "audio_base64": "DEMO_AUDIO_DATA"
+  }
+}

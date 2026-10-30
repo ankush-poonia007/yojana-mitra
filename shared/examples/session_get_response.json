@@ -1,0 +1,18 @@
+{
+  "session_id": "sess_demo_001",
+  "status": "active",
+  "language": "hi",
+  "mode": "voice",
+  "turns": [
+    {
+      "turn_id": "turn_001",
+      "role": "user",
+      "text": "क्या मैं उज्ज्वला योजना के लिए पात्र हूं?"
+    },
+    {
+      "turn_id": "turn_002",
+      "role": "assistant",
+      "text": "क्या आपके घर में पहले से LPG कनेक्शन है?"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "session_id": "sess_demo_001",
+  "turn_id": "turn_010",
+  "status": "completed",
+  "language": "hi",
+  "answer": {
+    "text": "आपके दिए गए उत्तरों के आधार पर आप संभवतः पात्र हैं। अंतिम पुष्टि LPG वितरक द्वारा होगी।"
+  },
+  "assessment": {
+    "scheme_id": "pmuy",
+    "result": "likely_eligible",
+    "reasons": [
+      "आवेदक महिला है और उसकी उम्र 18 वर्ष या अधिक है।",
+      "परिवार के पास पहले से LPG कनेक्शन नहीं है।"
+    ],
+    "missing_information": []
+  },
+  "card": {
+    "scheme_name": "प्रधानमंत्री उज्ज्वला योजना",
+    "documents": [
+      "आधार कार्ड",
+      "राशन कार्ड या परिवार संरचना का प्रमाण",
+      "बैंक पासबुक"
+    ],
+    "where_to_apply": [
+      "LPG वितरक",
+      "Common Service Centre"
+    ],
+    "disclaimer": "यह केवल प्रारंभिक पात्रता जानकारी है, आधिकारिक स्वीकृति नहीं।"
+  },
+  "sources": [
+    {
+      "document_id": "pmuy_official_001",
+      "title": "PMUY Official Guidelines",
+      "url": "https://example.gov.in/official-document",
+      "page": 4
+    }
+  ],
+  "speech": {
+    "status": "generated",
+    "content_type": "audio/mpeg",
+    "audio_base64": "DEMO_AUDIO_DATA"
+  }
+}
