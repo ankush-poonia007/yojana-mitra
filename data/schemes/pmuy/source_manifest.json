@@ -1,0 +1,194 @@
+{
+  "_manifest_meta": {
+    "scheme_id": "pmuy",
+    "manifest_version": "1.0",
+    "created_by": "anamika/backend",
+    "created_date": "2026-10-31",
+    "description": "Provenance register for all official PMUY sources used or planned for RAG ingestion. Status field records approval and currency gaps. This file is the single source of truth for source IDs, URLs, and open verification items. No ingestion output is claimed here.",
+    "research_retrieval_date": "2026-10-30",
+    "reference_documents": [
+      "docs/research/PMUY/PMUY_RAG_Knowledge_Base.md",
+      "docs/research/PMUY/PMUY_Research_Analysis.md"
+    ]
+  },
+  "sources": [
+    {
+      "source_id": "pmuy-s01",
+      "short_name": "Ujjwala 2.0 New Connection Page",
+      "url": "https://www.pmuy.gov.in/ujjwala2.html",
+      "source_type": "official_portal_page",
+      "publisher": "Ministry of Petroleum and Natural Gas / PMUY official portal",
+      "publisher_url": "https://www.pmuy.gov.in/",
+      "format": "html",
+      "priority": "critical",
+      "use_for": [
+        "Primary eligibility conditions",
+        "New-connection document requirements",
+        "Application guidance"
+      ],
+      "publication_date": null,
+      "revision_number": null,
+      "retrieval_date": "2026-10-30",
+      "file_on_disk": null,
+      "ingested": false,
+      "approved_for_use": true,
+      "provenance_gaps": [
+        "Publication date not recorded in source.",
+        "Revision number not visible. Recapture date must be compared on each re-download to detect changes."
+      ],
+      "currency_note": "Verify that the page content has not been updated since the retrieval date (2026-10-30) before operational deployment.",
+      "notes": "Primary reference for current Ujjwala 2.0 eligibility summary. Supersedes older PMUY category descriptions (SC/ST/AAY/SECC) that appear on the legacy About page."
+    },
+    {
+      "source_id": "pmuy-s02",
+      "short_name": "PMUY Official FAQs",
+      "url": "https://www.pmuy.gov.in/faq.html",
+      "source_type": "official_portal_faq",
+      "publisher": "Ministry of Petroleum and Natural Gas / PMUY official portal",
+      "publisher_url": "https://www.pmuy.gov.in/",
+      "format": "html",
+      "priority": "critical",
+      "use_for": [
+        "Household definition clarifications",
+        "Application routes",
+        "Document and verification guidance",
+        "Family-split cases"
+      ],
+      "publication_date": null,
+      "revision_number": null,
+      "retrieval_date": "2026-10-30",
+      "file_on_disk": null,
+      "ingested": false,
+      "approved_for_use": true,
+      "provenance_gaps": [
+        "Publication or last-updated date not recorded.",
+        "FAQ pages can be updated without version increments — must diff on re-download."
+      ],
+      "currency_note": "Verify that FAQ content has not changed since 2026-10-30.",
+      "notes": "Confirms that SC/ST/AAY/PMAY-G status are not independent eligibility gates under current Ujjwala 2.0. Use to clarify household definition and dual-connection exclusion."
+    },
+    {
+      "source_id": "pmuy-s03",
+      "short_name": "Deprivation Declaration for Poor Households",
+      "url": "https://www.pmuy.gov.in/documents/Deprivation_Declaration_for_Poor_Households_English.pdf",
+      "source_type": "official_pdf",
+      "publisher": "Ministry of Petroleum and Natural Gas / PMUY official portal",
+      "publisher_url": "https://www.pmuy.gov.in/",
+      "format": "pdf",
+      "priority": "critical",
+      "use_for": [
+        "Thirteen deprivation/exclusion criteria (D01–D13)",
+        "Applicant undertaking wording"
+      ],
+      "publication_date": null,
+      "revision_number": null,
+      "retrieval_date": "2026-10-30",
+      "file_on_disk": null,
+      "ingested": false,
+      "approved_for_use": true,
+      "provenance_gaps": [
+        "PDF does not visibly state a publication date or revision number in the reviewed copy.",
+        "Cannot confirm whether a newer declaration form is in circulation without contacting an LPG distributor or OMC."
+      ],
+      "currency_note": "HIGH PRIORITY OPEN: Confirm with an LPG distributor or OMC that this exact PDF version is still the operative declaration form before deployment. Thresholds (e.g. KCC limit, income) may have changed.",
+      "notes": "Source for D01–D13 deprivation/exclusion criteria. D13 (existing LPG connection) overlaps with primary rule R01; do not double-evaluate. See PMUY_RAG_Knowledge_Base.md §5 for extracted criteria."
+    },
+    {
+      "source_id": "pmuy-s04",
+      "short_name": "PMUY KYC Application Form — Version 8.0",
+      "url": "https://pmuy.gov.in/documents/Ujjwala-KYC_englishnew.pdf",
+      "source_type": "official_pdf",
+      "publisher": "Ministry of Petroleum and Natural Gas / PMUY official portal",
+      "publisher_url": "https://www.pmuy.gov.in/",
+      "format": "pdf",
+      "priority": "critical",
+      "use_for": [
+        "Applicant undertakings",
+        "Household definition (common kitchen, family composition document)",
+        "PNG restriction for subsidised LPG",
+        "Application fields and declarations"
+      ],
+      "publication_date": null,
+      "revision_number": null,
+      "form_version_in_document": "Version 8.0",
+      "retrieval_date": "2026-10-30",
+      "file_on_disk": null,
+      "ingested": false,
+      "approved_for_use": true,
+      "provenance_gaps": [
+        "Document publication date not recorded; only the form version number (8.0) is visible.",
+        "Cannot confirm Version 8.0 is still current without checking the official portal."
+      ],
+      "currency_note": "Verify that Version 8.0 is still the current operative form at the time of deployment. Re-download and compare if the portal content changes.",
+      "notes": "Shares the same PDF URL as pmuy-s05. pmuy-s04 covers the main KYC/application body. pmuy-s05 covers Annexure I (migrant self-declaration) in the same file. Both must be extracted from the same downloaded PDF."
+    },
+    {
+      "source_id": "pmuy-s05",
+      "short_name": "Migrant Self-Declaration / Annexure I",
+      "url": "https://pmuy.gov.in/documents/Ujjwala-KYC_englishnew.pdf",
+      "source_type": "official_pdf_annexure",
+      "publisher": "Ministry of Petroleum and Natural Gas / PMUY official portal",
+      "publisher_url": "https://www.pmuy.gov.in/",
+      "format": "pdf",
+      "priority": "supporting",
+      "use_for": [
+        "Migrant applicants' self-declaration route",
+        "Address evidence and family-composition evidence for migrants"
+      ],
+      "publication_date": null,
+      "revision_number": null,
+      "form_version_in_document": "Version 8.0 (same file as pmuy-s04)",
+      "retrieval_date": "2026-10-30",
+      "file_on_disk": null,
+      "ingested": false,
+      "approved_for_use": true,
+      "provenance_gaps": [
+        "Not a standalone document; it is Annexure I within the same PDF as pmuy-s04.",
+        "Annexure applicability for current form version unconfirmed without distributor/OMC guidance."
+      ],
+      "currency_note": "Use the current official application pack and distributor instructions to confirm which annexure applies to migrant cases at the time of deployment.",
+      "notes": "Must NOT be downloaded separately — it is extracted from the same PDF as pmuy-s04. Deduplicate on ingestion: chunk from a single downloaded copy of the PDF and tag chunks with the correct source_id."
+    }
+  ],
+  "ingestion_status": {
+    "files_downloaded": 0,
+    "files_on_disk": 0,
+    "chunks_extracted": 0,
+    "chunk_output_path": "data/extracted/pmuy_chunks.jsonl",
+    "chunk_schema_status": "OPEN — H4 contract not yet finalized. Do not write chunks until Ankush confirms the chunk/embedding schema.",
+    "last_updated": "2026-10-31"
+  },
+  "open_items": [
+    {
+      "id": "OPEN-01",
+      "description": "H4 retrieval/chunk schema must be agreed with Ankush before any ingestion code is written.",
+      "owner": "anamika + ankush",
+      "severity": "blocker"
+    },
+    {
+      "id": "OPEN-02",
+      "description": "pmuy-s03 has no visible publication date or revision number. Currency must be confirmed with an LPG distributor or OMC before deployment.",
+      "owner": "anamika",
+      "severity": "high"
+    },
+    {
+      "id": "OPEN-03",
+      "description": "pmuy-s04 form version 8.0 applicability must be reconfirmed at deployment time.",
+      "owner": "anamika",
+      "severity": "medium"
+    },
+    {
+      "id": "OPEN-04",
+      "description": "pmuy-s04 and pmuy-s05 share the same PDF URL. The ingestion script must download once and tag chunks with the correct source_id (s04 vs s05).",
+      "owner": "anamika",
+      "severity": "medium"
+    },
+    {
+      "id": "OPEN-05",
+      "description": "All 5 sources are HTML or PDF at remote URLs only. No files are on disk yet. Download requires network access and SHA-256 hashing before ingestion.",
+      "owner": "anamika",
+      "severity": "medium"
+    }
+  ]
+}
+
