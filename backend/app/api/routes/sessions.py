@@ -11,11 +11,10 @@ router = APIRouter(prefix="/api/v1/sessions", tags=["sessions"])
 @router.post("", status_code=201)
 async def create_session(payload: SessionCreate):
     """Create a new consultation session."""
-    return session_service.create_session(payload)
+    return await session_service.create_session(payload)
 
 
 @router.get("/{session_id}")
 async def get_session(session_id: str):
     """Retrieve session details and prior conversation turn history."""
-    return session_service.get_session(session_id)
-
+    return await session_service.get_session(session_id)

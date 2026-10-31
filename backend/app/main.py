@@ -1,6 +1,8 @@
 """FastAPI application entry point for Yojana Mitra."""
 from __future__ import annotations
 
+import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +15,30 @@ from app.core.errors import (
     http_error_handler,
     request_validation_error_handler,
 )
+from app.database.connection import close_db, init_db
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application startup and shutdown lifecycles."""
+    # Startup
+    if settings.mock_mode:
+        logger.info("Yojana Mitra backend starting in MOCK_MODE (in-memory fixtures).")
+    else:
+        logger.info("Yojana Mitra backend starting in PERSISTENT mode.")
+        if not settings.database_url:
+            raise RuntimeError("DATABASE_URL must be configured when MOCK_MODE=false.")
+        # Initialize connection pool and verify database readiness
+        await init_db(settings.database_url)
+
+    try:
+        yield
+    finally:
+        # Shutdown
+        logger.info("Yojana Mitra backend shutting down.")
+        await close_db()
 
 
 def create_app() -> FastAPI:
@@ -21,6 +47,7 @@ def create_app() -> FastAPI:
         title="Yojana Mitra API",
         version="1.0.0",
         description="Voice- and text-enabled government scheme navigation assistant API.",
+        lifespan=lifespan,
     )
 
     # CORS configuration

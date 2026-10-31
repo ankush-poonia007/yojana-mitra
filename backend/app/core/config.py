@@ -20,9 +20,10 @@ class Settings(BaseSettings):
 
     # Downstream service settings (Phase 2+; optional in Phase 1)
     gemini_api_key: str | None = None
-    gemini_model_high: str | None = None
-    gemini_model_mid: str | None = None
-    gemini_model_lite: str | None = None
+    gemini_model_high: str = "gemini-3.8-flash"
+    gemini_model_mid: str = "gemini-3.6-flash"
+    gemini_model_lite: str = "gemini-3.5-flash-lite"
+    gemini_timeout_seconds: float = 15.0
     stt_provider: str | None = None
     stt_api_key: str | None = None
     stt_model: str | None = None
@@ -52,10 +53,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-
-# Preserve Phase 1 mock-mode invariant: real downstream services are not yet connected.
-if not settings.mock_mode:
-    raise RuntimeError(
-        "This Phase 1 slice implements MOCK_MODE only; real backend services are not ready."
-    )
-
