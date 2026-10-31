@@ -6,8 +6,11 @@ import {
 } from '../mocks/mockTurns';
 import {
   mockEligibleResponse,
+  mockEligibleResponseEn,
   mockNotEligibleResponse,
+  mockNotEligibleResponseEn,
   mockCannotDetermineResponse,
+  mockCannotDetermineResponseEn,
 } from '../mocks/mockResults';
 
 export type PredefinedScenario = 'eligible' | 'not_eligible' | 'cannot_determine' | 'awaiting';
@@ -19,22 +22,23 @@ export type PredefinedScenario = 'eligible' | 'not_eligible' | 'cannot_determine
 export async function submitTextTurn(
   request: SubmitTextTurnRequest,
   scenario: PredefinedScenario = 'awaiting',
+  language: 'hi' | 'en' = 'hi',
 ): Promise<StandardTurnResponse> {
   if (isMockMode()) {
     switch (scenario) {
       case 'eligible':
         return Promise.resolve({
-          ...mockEligibleResponse,
+          ...(language === 'en' ? mockEligibleResponseEn : mockEligibleResponse),
           session_id: request.session_id,
         });
       case 'not_eligible':
         return Promise.resolve({
-          ...mockNotEligibleResponse,
+          ...(language === 'en' ? mockNotEligibleResponseEn : mockNotEligibleResponse),
           session_id: request.session_id,
         });
       case 'cannot_determine':
         return Promise.resolve({
-          ...mockCannotDetermineResponse,
+          ...(language === 'en' ? mockCannotDetermineResponseEn : mockCannotDetermineResponse),
           session_id: request.session_id,
         });
       case 'awaiting':
@@ -63,4 +67,3 @@ export async function submitVoiceTurn(
 
   throw new Error('Real backend integration for submitVoiceTurn is reserved for Phase 6.');
 }
-

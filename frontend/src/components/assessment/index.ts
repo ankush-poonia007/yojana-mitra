@@ -1,0 +1,1 @@
+export { TakeAwayCard } from './TakeAwayCard';

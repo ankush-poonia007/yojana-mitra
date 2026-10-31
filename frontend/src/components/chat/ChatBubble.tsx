@@ -1,10 +1,13 @@
 import React from 'react';
+import { StandardTurnResponse } from '../../types/turn';
 
 interface ChatBubbleProps {
   role: 'user' | 'assistant';
   text: string;
   transcriptionTag?: boolean;
   language: 'hi' | 'en';
+  assessmentResult?: StandardTurnResponse | null;
+  onViewResult?: (result: StandardTurnResponse) => void;
 }
 
 export const ChatBubble: React.FC<ChatBubbleProps> = ({
@@ -12,9 +15,14 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
   text,
   transcriptionTag = false,
   language,
+  assessmentResult,
+  onViewResult,
 }) => {
   const isUser = role === 'user';
   const isHindi = language === 'hi';
+
+  const hasAssessment = Boolean(assessmentResult && assessmentResult.assessment);
+  const outcome = assessmentResult?.assessment?.result;
 
   return (
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} my-2`}>
@@ -52,8 +60,31 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
         </div>
 
         <p className="whitespace-pre-wrap">{text}</p>
+
+        {/* Explicit Action: View Result when an assessment payload is present */}
+        {!isUser && hasAssessment && assessmentResult && onViewResult && (
+          <div className="mt-3 pt-3 border-t border-stone-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-stone-50/80 -mx-2 px-3 py-2.5 rounded-xl border">
+            <div className="text-xs">
+              <span className="font-semibold text-stone-800 block text-[11px]">
+                {isHindi ? '📊 पात्रता मूल्यांकन तैयार है' : '📊 Assessment Ready'}
+              </span>
+              <span className="text-[10px] text-stone-500 font-mono">
+                {outcome === 'likely_eligible' && '✅ likely_eligible'}
+                {outcome === 'likely_not_eligible' && '⚠️ likely_not_eligible'}
+                {outcome === 'cannot_determine' && '❓ cannot_determine'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => onViewResult(assessmentResult)}
+              className="inline-flex items-center justify-center gap-1.5 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg shadow-2xs transition-colors shrink-0 cursor-pointer active:scale-95"
+            >
+              <span>{isHindi ? 'परिणाम देखें' : 'View Result'}</span>
+              <span>→</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 };
-
