@@ -1,2 +1,7 @@
-export type ScreenName = 'language' | 'welcome' | 'demo' | 'chat' | 'result';
-
+export type ScreenName =
+  | 'language'
+  | 'welcome'
+  | 'demo'
+  | 'mode_select'
+  | 'chat'
+  | 'result';
