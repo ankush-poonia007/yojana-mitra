@@ -3,18 +3,33 @@ import { ChatBubble } from '../components/chat/ChatBubble';
 import { ChatInput } from '../components/chat/ChatInput';
 import { TypingIndicator } from '../components/chat/TypingIndicator';
 import { LanguageCode, InteractionMode } from '../types/session';
+import { StandardTurnResponse } from '../types/turn';
+import {
+  mockEligibleResponse,
+  mockEligibleResponseEn,
+  mockNotEligibleResponse,
+  mockNotEligibleResponseEn,
+  mockCannotDetermineResponse,
+  mockCannotDetermineResponseEn,
+} from '../mocks/mockResults';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   text: string;
   isSpoken?: boolean;
+  assessmentResult?: StandardTurnResponse | null;
 }
 
 interface ChatVoiceScreenProps {
   language: LanguageCode;
   initialMode: InteractionMode;
   onBackToModeSelect: () => void;
+  onViewResult: (result: StandardTurnResponse) => void;
+  messages: Message[];
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+  activeAssessmentResult: StandardTurnResponse | null;
+  setActiveAssessmentResult: React.Dispatch<React.SetStateAction<StandardTurnResponse | null>>;
 }
 
 // Minimal Web Speech Recognition Interface
@@ -34,22 +49,16 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
   language,
   initialMode,
   onBackToModeSelect,
+  onViewResult,
+  messages,
+  setMessages,
+  activeAssessmentResult,
+  setActiveAssessmentResult,
 }) => {
   const isHindi = language === 'hi';
 
   // Mode state: 'text' or 'voice'
   const [mode, setMode] = useState<InteractionMode>(initialMode);
-
-  // Conversation history (shared between Voice and Text mode)
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'msg-welcome',
-      role: 'assistant',
-      text: isHindi
-        ? 'नमस्ते! मैं योजना मित्र हूँ। मैं प्रधानमंत्री उज्ज्वला योजना (PMUY) की पात्रता और ज़रूरी दस्तावेज़ समझने में आपकी मदद कर सकता हूँ। आप क्या जानना चाहते हैं?'
-        : 'Hello! I am Yojana Mitra. I can help you understand eligibility and required documents for Pradhan Mantri Ujjwala Yojana (PMUY). What would you like to know?',
-    },
-  ]);
 
   // Input & loading states for Text Mode
   const [inputText, setInputText] = useState<string>('');
@@ -110,7 +119,7 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
     setMode(newMode);
   };
 
-  // Predefined deterministic mock replies for demonstration
+  // Predefined deterministic mock replies for informational questions
   const getMockReply = (userQuery: string): string => {
     const query = userQuery.toLowerCase();
     if (query.includes('पात्र') || query.includes('eligible') || query.includes('eligibility')) {
@@ -133,7 +142,7 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
       : 'Thank you. Under Ujjwala Yojana, eligible women receive a deposit-free LPG connection, first refill, and stove. Would you like to check eligibility criteria or the document list?';
   };
 
-  // Text Mode Submit Handler
+  // Text Mode Submit Handler (Informational turn)
   const handleSendTextMessage = () => {
     const textToSend = inputText.trim();
     if (!textToSend || isTyping) return;
@@ -148,7 +157,7 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
     setInputText('');
     setIsTyping(true);
 
-    // Simulate mock latency (600ms)
+    // Simulate mock latency (500ms)
     setTimeout(() => {
       if (!isMountedRef.current) return;
       const replyText = getMockReply(textToSend);
@@ -159,7 +168,47 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
       };
       setMessages((prev) => [...prev, assistantMsg]);
       setIsTyping(false);
-    }, 600);
+    }, 500);
+  };
+
+  // Test / Dev Control: Inject one of the 3 frozen assessment mock outcomes
+  const handleInjectSampleOutcome = (outcomeType: 'eligible' | 'not_eligible' | 'cannot_determine') => {
+    let mockResult: StandardTurnResponse;
+    if (outcomeType === 'eligible') {
+      mockResult = isHindi ? mockEligibleResponse : mockEligibleResponseEn;
+    } else if (outcomeType === 'not_eligible') {
+      mockResult = isHindi ? mockNotEligibleResponse : mockNotEligibleResponseEn;
+    } else {
+      mockResult = isHindi ? mockCannotDetermineResponse : mockCannotDetermineResponseEn;
+    }
+
+    setActiveAssessmentResult(mockResult);
+
+    const userSimulatedPrompt: Message = {
+      id: `usr-test-${Date.now()}`,
+      role: 'user',
+      text:
+        outcomeType === 'eligible'
+          ? isHindi
+            ? '[परीक्षण इनपुट] मैं 18+ महिला हूँ, कोई LPG नहीं है।'
+            : '[Test Input] I am an 18+ woman, no LPG connection in household.'
+          : outcomeType === 'not_eligible'
+          ? isHindi
+            ? '[परीक्षण इनपुट] मेरे घर में पहले से गैस कनेक्शन है।'
+            : '[Test Input] We already have an active gas cylinder connection.'
+          : isHindi
+          ? '[परीक्षण इनपुट] अभी स्पष्ट नहीं है कि परिवार में गैस कनेक्शन है या नहीं।'
+          : '[Test Input] Unclear whether our household already has an LPG connection.',
+    };
+
+    const assistantAssessmentReply: Message = {
+      id: `ast-test-${Date.now()}`,
+      role: 'assistant',
+      text: mockResult.answer.text,
+      assessmentResult: mockResult,
+    };
+
+    setMessages((prev) => [...prev, userSimulatedPrompt, assistantAssessmentReply]);
   };
 
   // Suggested questions in empty/initial state
@@ -247,56 +296,47 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
             };
             setMessages((prev) => [...prev, assistantMsg]);
             speakAssistantReply(reply);
-          }, 700);
+          }, 600);
         } else {
-          setVoiceState('error');
-          setVoiceErrorMessage(
-            isHindi
-              ? 'आवाज़ समझ नहीं आई। कृपया दोबारा बोलें।'
-              : 'Could not understand speech. Please try again.'
-          );
+          setVoiceState('idle');
         }
       };
 
       recognition.onerror = (event: unknown) => {
         if (!isMountedRef.current) return;
         const errEvent = event as { error?: string };
-        setVoiceState('error');
-        if (errEvent.error === 'not-allowed') {
-          setVoiceErrorMessage(
-            isHindi
-              ? 'माइक्रोफ़ोन की अनुमति अस्वीकृत हुई। कृपया अनुमति दें या टेक्स्ट मोड पर जाएँ।'
-              : 'Microphone permission was denied. Please allow mic or switch to Text Mode.'
-          );
-        } else if (errEvent.error === 'no-speech') {
-          setVoiceErrorMessage(
-            isHindi
-              ? 'कोई आवाज़ नहीं सुनी गई। कृपया माइक दबाकर बोलें।'
-              : 'No speech was detected. Please tap the orb and speak.'
-          );
-        } else {
-          setVoiceErrorMessage(
-            isHindi
-              ? 'पहचान में त्रुटि हुई। कृपया पुनः प्रयास करें।'
-              : 'Speech recognition error. Please try again.'
-          );
+        const errCode = errEvent.error;
+
+        if (errCode === 'no-speech') {
+          setVoiceState('idle');
+          return;
         }
+
+        setVoiceState('error');
+        setVoiceErrorMessage(
+          errCode === 'not-allowed'
+            ? isHindi
+              ? 'माइक्रोफ़ोन की अनुमति अस्वीकृत है। कृपया ब्राउज़र सेटिंग्स में अनुमति दें।'
+              : 'Microphone permission denied. Please allow microphone access.'
+            : isHindi
+            ? 'आवाज़ पहचानने में समस्या आई। पुनः प्रयास करें या लिखकर पूछें।'
+            : 'Error recognizing speech. Try again or switch to text mode.'
+        );
       };
 
       recognition.onend = () => {
-        // If it ended without result or error
-        if (isMountedRef.current) {
-          setVoiceState((current) => (current === 'listening' ? 'idle' : current));
+        if (isMountedRef.current && voiceState === 'listening') {
+          setVoiceState('idle');
         }
       };
 
-      recognition.start();
       setVoiceState('listening');
+      recognition.start();
     } catch {
       setVoiceState('error');
       setVoiceErrorMessage(
         isHindi
-          ? 'माइक्रोफ़ोन शुरू करने में समस्या आई।'
+          ? 'माइक्रोफ़ोन प्रारंभ नहीं हो सका।'
           : 'Could not start microphone.'
       );
     }
@@ -363,7 +403,7 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
     }
   };
 
-  // Get the last assistant message for the Voice Mode caption
+  // Get the latest assistant message for Voice Mode caption
   const latestAssistantMessage = [...messages].reverse().find((m) => m.role === 'assistant');
 
   return (
@@ -383,6 +423,18 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
             {isHindi ? 'योजना मित्र सहायक' : 'Yojana Mitra Assistant'}
           </span>
         </div>
+
+        {/* View Active Assessment Result Button (Visible when assessment data exists) */}
+        {activeAssessmentResult && (
+          <button
+            type="button"
+            onClick={() => onViewResult(activeAssessmentResult)}
+            className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-full text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+          >
+            <span>📊</span>
+            <span>{isHindi ? 'परिणाम देखें' : 'View Result'}</span>
+          </button>
+        )}
 
         {/* Toggle Pills: Text vs Voice */}
         <div className="inline-flex rounded-full bg-stone-100 p-0.5 border border-stone-200">
@@ -413,6 +465,37 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
         </div>
       </div>
 
+      {/* Dev / Test Scenarios Bar (Clearly labeled MOCK / TEST DATA) */}
+      <div className="bg-amber-50/90 border-b border-amber-200 px-4 py-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px] shrink-0">
+        <div className="flex items-center gap-1.5 font-bold text-amber-900 uppercase tracking-wider">
+          <span className="bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded text-[10px]">MOCK / TEST DATA</span>
+          <span>{isHindi ? 'परिणाम सिमुलेशन:' : 'Simulate Outcome:'}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => handleInjectSampleOutcome('eligible')}
+            className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 hover:bg-emerald-200 font-semibold border border-emerald-300 transition-colors"
+          >
+            ✅ {isHindi ? 'पात्र' : 'Eligible'}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleInjectSampleOutcome('not_eligible')}
+            className="px-2 py-0.5 rounded bg-rose-100 text-rose-800 hover:bg-rose-200 font-semibold border border-rose-300 transition-colors"
+          >
+            ⚠️ {isHindi ? 'अपात्र' : 'Not Eligible'}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleInjectSampleOutcome('cannot_determine')}
+            className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 hover:bg-amber-200 font-semibold border border-amber-300 transition-colors"
+          >
+            ❓ {isHindi ? 'अनिर्धारित' : 'Cannot Determine'}
+          </button>
+        </div>
+      </div>
+
       {/* ========================================================
           MODE 1: TEXT MODE (Classic Responsive Chat Interface)
           ======================================================== */}
@@ -427,6 +510,8 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
                 text={msg.text}
                 transcriptionTag={msg.isSpoken}
                 language={language}
+                assessmentResult={msg.assessmentResult}
+                onViewResult={onViewResult}
               />
             ))}
 
@@ -481,30 +566,38 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
             </div>
           </div>
 
-          {/* Central Siri-Style Floating Orb */}
-          <div className="relative flex items-center justify-center my-auto py-8">
-            {/* Outer Expanding Waves (Listening State) */}
-            {voiceState === 'listening' && (
+          {/* Pulsing Siri-Style Interactive Orb */}
+          <div className="my-auto flex flex-col items-center justify-center relative">
+            {/* Ambient Background Glow Layer */}
+            <div
+              className={`absolute w-64 h-64 rounded-full filter blur-2xl opacity-40 transition-all duration-700 pointer-events-none ${
+                voiceState === 'listening'
+                  ? 'bg-rose-400 scale-125'
+                  : voiceState === 'processing'
+                  ? 'bg-amber-400 scale-110'
+                  : voiceState === 'speaking'
+                  ? 'bg-emerald-400 scale-135'
+                  : 'bg-stone-300 scale-90'
+              }`}
+            />
+
+            {/* Ripple Pulse Rings (Active when listening or speaking) */}
+            {(voiceState === 'listening' || voiceState === 'speaking') && (
               <>
-                <div className="absolute w-56 h-56 rounded-full bg-amber-400/20 animate-ping [animation-duration:2s]" />
-                <div className="absolute w-44 h-44 rounded-full bg-orange-400/30 animate-pulse [animation-duration:1.5s]" />
+                <div
+                  className={`absolute w-48 h-48 rounded-full border-2 border-current animate-ping opacity-25 pointer-events-none ${
+                    voiceState === 'listening' ? 'text-rose-500' : 'text-emerald-500'
+                  }`}
+                />
+                <div
+                  className={`absolute w-56 h-56 rounded-full border border-current animate-pulse opacity-20 pointer-events-none ${
+                    voiceState === 'listening' ? 'text-rose-400' : 'text-emerald-400'
+                  }`}
+                />
               </>
             )}
 
-            {/* Glowing Rings (Speaking State) */}
-            {voiceState === 'speaking' && (
-              <>
-                <div className="absolute w-52 h-52 rounded-full bg-indigo-500/20 animate-pulse [animation-duration:1.2s]" />
-                <div className="absolute w-40 h-40 rounded-full bg-amber-500/30 animate-ping [animation-duration:2.5s]" />
-              </>
-            )}
-
-            {/* Processing Spinner Ring */}
-            {voiceState === 'processing' && (
-              <div className="absolute w-40 h-40 rounded-full border-4 border-amber-500/30 border-t-amber-600 animate-spin" />
-            )}
-
-            {/* The Interactive Floating Orb Core */}
+            {/* Main Interactive Button Orb */}
             <button
               type="button"
               onClick={() => {
@@ -516,36 +609,31 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
                   handleStartVoiceListening();
                 }
               }}
-              className={`relative z-10 w-32 h-32 rounded-full flex flex-col items-center justify-center transition-all duration-300 shadow-xl cursor-pointer active:scale-95 ${
-                voiceState === 'listening'
-                  ? 'bg-gradient-to-tr from-amber-500 via-orange-500 to-amber-300 ring-4 ring-amber-400/60 shadow-amber-500/50 scale-105'
-                  : voiceState === 'speaking'
-                  ? 'bg-gradient-to-tr from-slate-900 via-indigo-900 to-amber-600 ring-4 ring-indigo-400/60 shadow-indigo-500/50 scale-105'
-                  : voiceState === 'processing'
-                  ? 'bg-gradient-to-tr from-amber-600 to-slate-800 scale-95 opacity-90'
-                  : voiceState === 'error'
-                  ? 'bg-gradient-to-tr from-red-600 to-amber-700 ring-4 ring-red-400/50'
-                  : 'bg-gradient-to-tr from-slate-900 via-slate-800 to-amber-600 hover:scale-105 shadow-slate-900/40 ring-4 ring-white'
-              }`}
               aria-label={
                 voiceState === 'listening'
                   ? isHindi
                     ? 'सुनना बंद करें'
                     : 'Stop listening'
-                  : isHindi
-                  ? 'बोलने के लिए टैप करें'
-                  : 'Tap to speak'
-              }
-            >
-              {/* Inner Glowing Core Icon */}
-              <span className="text-3xl text-white drop-shadow-md">
-                {voiceState === 'listening'
-                  ? '⏹'
                   : voiceState === 'speaking'
-                  ? '🔊'
+                  ? isHindi
+                    ? 'आवाज़ रोकें'
+                    : 'Stop speaking'
+                  : isHindi
+                  ? 'बोलना शुरू करें'
+                  : 'Start speaking'
+              }
+              className={`relative z-10 w-36 h-36 rounded-full flex flex-col items-center justify-center shadow-2xl transition-all duration-300 active:scale-95 cursor-pointer ${
+                voiceState === 'listening'
+                  ? 'bg-gradient-to-tr from-rose-500 to-amber-500 scale-110 ring-4 ring-rose-200'
                   : voiceState === 'processing'
-                  ? '⏳'
-                  : '🎙️'}
+                  ? 'bg-gradient-to-tr from-amber-400 to-amber-600 animate-spin ring-4 ring-amber-200'
+                  : voiceState === 'speaking'
+                  ? 'bg-gradient-to-tr from-emerald-500 to-teal-600 scale-105 ring-4 ring-emerald-200'
+                  : 'bg-gradient-to-tr from-stone-800 to-stone-900 hover:scale-105 ring-4 ring-stone-200'
+              }`}
+            >
+              <span className="text-3xl text-white">
+                {voiceState === 'listening' ? '🛑' : voiceState === 'speaking' ? '🔊' : '🎙️'}
               </span>
               <span className="text-[10px] text-white/90 font-medium mt-1 uppercase tracking-wider">
                 {voiceState === 'listening'
@@ -640,4 +728,3 @@ function suggestQueriesChips(chips: string[], onSelect: (chip: string) => void) 
     </button>
   ));
 }
-
