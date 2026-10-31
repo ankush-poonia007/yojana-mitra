@@ -1,21 +1,14 @@
-"""Global pytest fixtures for Yojana Mitra backend tests."""
-
-import pytest
-
-
-@pytest.fixture
-def mock_session_id():
-    """Returns a canonical test session ID."""
-    return "sess_demo_001"
 """Pytest configuration, path resolution, and shared fixtures."""
+
 from __future__ import annotations
 
 import sys
 from pathlib import Path
+
 import pytest
 from starlette.testclient import TestClient
 
-# Ensure the backend directory is in the Python module search path
+# Ensure the backend directory is in the Python module search path.
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
@@ -25,15 +18,29 @@ from app.services.session_service import session_service
 
 
 @pytest.fixture(autouse=True)
-def reset_mock_state():
-    """Reset session service in-memory store before each test for state isolation."""
+def reset_mock_session_store():
+    """Keep the shared mock session store isolated between tests."""
     session_service.reset_store()
     yield
     session_service.reset_store()
 
 
 @pytest.fixture
-def client() -> TestClient:
-    """Provide a TestClient instance for exercising API endpoints."""
-    return TestClient(app)
+def mock_session_id():
+    """Returns a canonical test session ID."""
+    return "sess_demo_001"
 
+
+@pytest.fixture
+def client():
+    """Provides a FastAPI test client."""
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def mock_services():
+    """Provides access to shared mock services."""
+    return {
+        "session_service": session_service,
+    }
