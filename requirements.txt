@@ -21,6 +21,7 @@ google-genai>=1.0                # Gemini: text generation, transcription, speec
 # --- Database, retrieval and storage ---
 supabase>=2.4                    # Supabase client (Storage and backend-only privileged access)
 psycopg[binary]>=3.1             # direct PostgreSQL access through DATABASE_URL
+psycopg-pool>=3.1                # connection pooling for psycopg 3
 pgvector>=0.2                    # pgvector support for psycopg (semantic retrieval)
 
 # --- Document ingestion (data/ pipeline) ---
