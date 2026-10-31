@@ -3,13 +3,14 @@ import {
   SessionResponse,
   SessionDetailsResponse,
 } from '../types/session';
-import { isMockMode } from './apiClient';
+import { isMockMode, apiRequest } from './apiClient';
 import { mockCreatedSession, mockSessionDetails } from '../mocks/mockSessions';
 
 /**
  * Service abstraction for session operations.
- * When VITE_MOCK_MODE=true, returns schema-compliant fixtures.
- * When real API mode is active, connects to POST /api/v1/sessions and GET /api/v1/sessions/{id}.
+ * In mock mode (VITE_MOCK_MODE=true): returns schema-compliant fixtures with zero network calls.
+ * In real mode: connects to POST /api/v1/sessions and GET /api/v1/sessions/{id}
+ * per frozen Phase 3.3 API contract.
  */
 export async function createSession(
   request: CreateSessionRequest,
@@ -24,7 +25,16 @@ export async function createSession(
     });
   }
 
-  throw new Error('Real backend integration for createSession is reserved for Phase 6.');
+  return apiRequest<SessionResponse>('/api/v1/sessions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      language: request.language,
+      mode: request.mode,
+    }),
+  });
 }
 
 export async function getSession(
@@ -37,6 +47,5 @@ export async function getSession(
     });
   }
 
-  throw new Error('Real backend integration for getSession is reserved for Phase 6.');
+  return apiRequest<SessionDetailsResponse>(`/api/v1/sessions/${sessionId}`);
 }
-

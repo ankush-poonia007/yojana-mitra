@@ -25,7 +25,12 @@ async def eligibility_seam_node(
         }
 
     # Delegate exclusively to deterministic eligibility adapter
-    assessment = eligibility_adapter.evaluate(scheme_id=scheme_id, answers=answers)
+    language = state.get("language") or "hi"
+    assessment = eligibility_adapter.evaluate(
+        scheme_id=scheme_id,
+        answers=answers,
+        language=language,
+    )
     return {
         "assessment": assessment,
     }

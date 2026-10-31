@@ -4,36 +4,42 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from app.eligibility.engine import evaluate_pmuy_eligibility
+
 logger = logging.getLogger(__name__)
 
 
 class EligibilityAdapter:
     """Boundary adapter connecting LangGraph workflow to deterministic PMUY rules."""
 
-    def evaluate(self, scheme_id: str, answers: dict[str, Any]) -> dict[str, Any]:
+    def evaluate(
+        self,
+        scheme_id: str,
+        answers: dict[str, Any],
+        language: str = "hi",
+    ) -> dict[str, Any]:
         """Evaluate eligibility answers adhering strictly to shared/api-contract.md §4.8.
 
-        Round 1 Pre-Integration Seam:
-        The deterministic eligibility rule engine handoff (H3) is pending from Anamika.
-        Always returns cannot_determine. Never returns likely_eligible or likely_not_eligible.
-        Communicates clearly that the deterministic eligibility engine handoff is pending.
+        Connects LangGraph workflow to Anamika's deterministic PMUY rule engine.
+        Returns strict 4-field contract: {scheme_id, result, reasons, missing_information}.
         Preserves missing, unclear, and contradictory answer semantics.
         """
-        reasons = [
-            "पात्रता निर्धारण के लिए नियम इंजन एकीकरण लंबित है (Deterministic eligibility engine handoff is pending)."
-        ]
+        target_scheme = scheme_id or "pmuy"
+        if target_scheme != "pmuy":
+            is_hindi = language.lower().startswith("hi")
+            return {
+                "scheme_id": target_scheme,
+                "result": "cannot_determine",
+                "reasons": [
+                    "वर्तमान में केवल प्रधानमंत्री उज्ज्वला योजना (PMUY 2.0) के लिए नियम मूल्यांकन समर्थित है।"
+                    if is_hindi
+                    else "Deterministic rule evaluation is currently supported only for PMUY 2.0."
+                ],
+                "missing_information": [],
+            }
 
-        # Preserve missing answer semantics without inventing unapproved engine contracts
-        missing: list[str] = []
-        if not answers:
-            missing.append("preliminary_answers")
-
-        return {
-            "scheme_id": scheme_id or "pmuy",
-            "result": "cannot_determine",
-            "reasons": reasons,
-            "missing_information": missing,
-        }
+        assessment_result = evaluate_pmuy_eligibility(answers=answers or {}, language=language)
+        return assessment_result.to_api_assessment()
 
 
 eligibility_adapter = EligibilityAdapter()

@@ -1,5 +1,5 @@
 import { SubmitTextTurnRequest, StandardTurnResponse } from '../types/turn';
-import { isMockMode } from './apiClient';
+import { isMockMode, apiRequest } from './apiClient';
 import {
   mockAwaitingTurnResponse,
   mockVoiceTurnResponse,
@@ -18,6 +18,8 @@ export type PredefinedScenario = 'eligible' | 'not_eligible' | 'cannot_determine
 /**
  * Service abstraction for submitting conversation turns.
  * Isolates UI from HTTP calls and mock logic.
+ * In mock mode: returns predefined fixture responses without network calls.
+ * In real mode: calls POST /api/v1/turns per frozen Phase 3.3 API contract.
  */
 export async function submitTextTurn(
   request: SubmitTextTurnRequest,
@@ -50,13 +52,22 @@ export async function submitTextTurn(
     }
   }
 
-  throw new Error('Real backend integration for submitTextTurn is reserved for Phase 6.');
+  return apiRequest<StandardTurnResponse>('/api/v1/turns', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      session_id: request.session_id,
+      text: request.text,
+    }),
+  });
 }
 
 export async function submitVoiceTurn(
   sessionId: string,
-  _audioBlob: Blob,
-  _language?: string,
+  audioBlob: Blob,
+  language?: string,
 ): Promise<StandardTurnResponse> {
   if (isMockMode()) {
     return Promise.resolve({
@@ -65,5 +76,15 @@ export async function submitVoiceTurn(
     });
   }
 
-  throw new Error('Real backend integration for submitVoiceTurn is reserved for Phase 6.');
+  const formData = new FormData();
+  formData.append('session_id', sessionId);
+  formData.append('audio', audioBlob, 'turn_audio.wav');
+  if (language) {
+    formData.append('language', language);
+  }
+
+  return apiRequest<StandardTurnResponse>('/api/v1/voice/turns', {
+    method: 'POST',
+    body: formData,
+  });
 }

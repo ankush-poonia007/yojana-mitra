@@ -10,7 +10,7 @@ import { ScreenName } from './types/navigation';
 import { LanguageCode, InteractionMode } from './types/session';
 import { StandardTurnResponse } from './types/turn';
 
-interface Message {
+export interface Message {
   id: string;
   role: 'user' | 'assistant';
   text: string;
@@ -22,6 +22,7 @@ export function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenName>('language');
   const [language, setLanguage] = useState<LanguageCode>('hi');
   const [interactionMode, setInteractionMode] = useState<InteractionMode>('voice');
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   // Lifted conversation & assessment state to preserve history across navigation
   const [messages, setMessages] = useState<Message[]>([
@@ -74,6 +75,7 @@ export function App() {
       },
     ]);
     setActiveAssessmentResult(null);
+    setSessionId(null);
     setCurrentScreen('chat');
   };
 
@@ -152,6 +154,8 @@ export function App() {
             setMessages={setMessages}
             activeAssessmentResult={activeAssessmentResult}
             setActiveAssessmentResult={setActiveAssessmentResult}
+            sessionId={sessionId}
+            setSessionId={setSessionId}
           />
         )}
 
@@ -181,5 +185,4 @@ export function App() {
     </div>
   );
 }
-
 export default App;
