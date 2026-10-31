@@ -4,6 +4,9 @@ import { ChatInput } from '../components/chat/ChatInput';
 import { TypingIndicator } from '../components/chat/TypingIndicator';
 import { LanguageCode, InteractionMode } from '../types/session';
 import { StandardTurnResponse } from '../types/turn';
+import { createSession } from '../services/sessionService';
+import { submitTextTurn, PredefinedScenario } from '../services/turnService';
+import { ApiServiceError } from '../services/apiClient';
 import {
   mockEligibleResponse,
   mockEligibleResponseEn,
@@ -13,7 +16,7 @@ import {
   mockCannotDetermineResponseEn,
 } from '../mocks/mockResults';
 
-interface Message {
+export interface Message {
   id: string;
   role: 'user' | 'assistant';
   text: string;
@@ -28,8 +31,10 @@ interface ChatVoiceScreenProps {
   onViewResult: (result: StandardTurnResponse) => void;
   messages: Message[];
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
-  activeAssessmentResult: StandardTurnResponse | null;
+  activeAssessmentResult?: StandardTurnResponse | null;
   setActiveAssessmentResult: React.Dispatch<React.SetStateAction<StandardTurnResponse | null>>;
+  sessionId: string | null;
+  setSessionId: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 // Minimal Web Speech Recognition Interface
@@ -52,8 +57,10 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
   onViewResult,
   messages,
   setMessages,
-  activeAssessmentResult,
+  activeAssessmentResult: _activeAssessmentResult,
   setActiveAssessmentResult,
+  sessionId,
+  setSessionId,
 }) => {
   const isHindi = language === 'hi';
 
@@ -63,6 +70,7 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
   // Input & loading states for Text Mode
   const [inputText, setInputText] = useState<string>('');
   const [isTyping, setIsTyping] = useState<boolean>(false);
+  const [apiErrorMessage, setApiErrorMessage] = useState<string | null>(null);
 
   // Voice Mode States: 'idle' | 'listening' | 'processing' | 'speaking' | 'error'
   const [voiceState, setVoiceState] = useState<
@@ -75,6 +83,25 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<IWindowSpeechRecognition | null>(null);
   const isMountedRef = useRef<boolean>(true);
+
+  // Auto-initialize session if not already created
+  useEffect(() => {
+    let isCurrent = true;
+    if (!sessionId) {
+      createSession({ language, mode })
+        .then((session) => {
+          if (isCurrent && session?.session_id) {
+            setSessionId(session.session_id);
+          }
+        })
+        .catch((err) => {
+          console.warn('Initial session creation deferred:', err);
+        });
+    }
+    return () => {
+      isCurrent = false;
+    };
+  }, [sessionId, language, mode, setSessionId]);
 
   // Auto-scroll to bottom of message list in Text Mode
   useEffect(() => {
@@ -119,35 +146,34 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
     setMode(newMode);
   };
 
-  // Predefined deterministic mock replies for informational questions
-  const getMockReply = (userQuery: string): string => {
-    const query = userQuery.toLowerCase();
-    if (query.includes('पात्र') || query.includes('eligible') || query.includes('eligibility')) {
-      return isHindi
-        ? 'प्रधानमंत्री उज्ज्वला योजना (PMUY 2.0) के लिए मुख्य शर्तें हैं: 1. आवेदक 18 वर्ष से अधिक उम्र की महिला होनी चाहिए। 2. परिवार में पहले से कोई LPG कनेक्शन नहीं होना चाहिए। 3. गरीब परिवार (SECC / BPL / 14 सूत्री घोषणा) से होना चाहिए। क्या आपके परिवार में पहले से कोई गैस कनेक्शन है?'
-        : 'Key eligibility criteria for PM Ujjwala Yojana (PMUY 2.0): 1. Applicant must be a woman aged 18 or above. 2. No existing LPG connection in the household. 3. Belongs to a poor household. Does your household already have an LPG connection?';
+  // Development/Test outcome injector for demonstrator/reviewer convenience
+  const handleInjectSampleOutcome = (outcome: PredefinedScenario) => {
+    let sampleResult: StandardTurnResponse;
+    if (outcome === 'eligible') {
+      sampleResult = isHindi ? mockEligibleResponse : mockEligibleResponseEn;
+    } else if (outcome === 'not_eligible') {
+      sampleResult = isHindi ? mockNotEligibleResponse : mockNotEligibleResponseEn;
+    } else {
+      sampleResult = isHindi ? mockCannotDetermineResponse : mockCannotDetermineResponseEn;
     }
-    if (query.includes('दस्तावेज़') || query.includes('document') || query.includes('paper')) {
-      return isHindi
-        ? 'आवेदन के लिए ये दस्तावेज़ आवश्यक हैं: 1. आधार कार्ड (पहचान व पते का प्रमाण) 2. राशन कार्ड (परिवार संरचना प्रमाण) 3. बैंक खाता संख्या और IFSC 4. 14 सूत्री घोषणा पत्र। क्या आपके पास ये दस्तावेज़ तैयार हैं?'
-        : 'Required documents for application: 1. Aadhaar Card (identity/address proof) 2. Ration Card (family composition proof) 3. Bank Account Number & IFSC 4. 14-point declaration. Do you have these documents ready?';
-    }
-    if (query.includes('कहाँ') || query.includes('apply') || query.includes('आवेदन') || query.includes('csc')) {
-      return isHindi
-        ? 'आप अपने निकटतम LPG वितरक (इंडेन, भारत गैस, या एचपी गैस) के पास जाकर या अपने ग्राम पंचायत के कॉमन सर्विस सेंटर (CSC) पर आवेदन कर सकते हैं। वितरक से रसीद लेना न भूलें।'
-        : 'You can apply at your nearest LPG distributor (Indane, Bharat Gas, HP Gas) or at your Gram Panchayat Common Service Centre (CSC). Always remember to collect an acknowledgement receipt.';
-    }
-    return isHindi
-      ? 'धन्यवाद। उज्ज्वला योजना में महिलाओं को मुफ्त गैस कनेक्शन, पहला भरा हुआ सिलेंडर और चूल्हा दिया जाता है। क्या आप पात्रता नियम या दस्तावेज़ सूची जानना चाहते हैं?'
-      : 'Thank you. Under Ujjwala Yojana, eligible women receive a deposit-free LPG connection, first refill, and stove. Would you like to check eligibility criteria or the document list?';
+
+    const sampleAssistantMsg: Message = {
+      id: `ast-mock-${Date.now()}`,
+      role: 'assistant',
+      text: sampleResult.answer.text,
+      assessmentResult: sampleResult,
+    };
+
+    setActiveAssessmentResult(sampleResult);
+    setMessages((prev) => [...prev, sampleAssistantMsg]);
   };
 
-  // Text Mode Submit Handler (Informational turn)
-  const handleSendTextMessage = () => {
+  // Text Mode Submit Handler (Wires directly to submitTextTurn service)
+  const handleSendTextMessage = async () => {
     const textToSend = inputText.trim();
     if (!textToSend || isTyping) return;
 
-    // Append user message
+    // Append user message immediately
     const userMsg: Message = {
       id: `usr-${Date.now()}`,
       role: 'user',
@@ -156,73 +182,66 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
     setMessages((prev) => [...prev, userMsg]);
     setInputText('');
     setIsTyping(true);
+    setApiErrorMessage(null);
 
-    // Simulate mock latency (500ms)
-    setTimeout(() => {
-      if (!isMountedRef.current) return;
-      const replyText = getMockReply(textToSend);
+    try {
+      let currentSessionId = sessionId;
+      if (!currentSessionId) {
+        const created = await createSession({ language, mode });
+        currentSessionId = created.session_id;
+        setSessionId(currentSessionId);
+      }
+
+      const turnResponse = await submitTextTurn(
+        {
+          session_id: currentSessionId,
+          text: textToSend,
+        },
+        'awaiting',
+        language,
+      );
+
       const assistantMsg: Message = {
         id: `ast-${Date.now()}`,
         role: 'assistant',
-        text: replyText,
+        text:
+          turnResponse.answer?.text ||
+          (isHindi ? 'कोई उत्तर उपलब्ध नहीं है।' : 'No answer available.'),
+        assessmentResult: turnResponse.assessment ? turnResponse : null,
       };
+
+      if (turnResponse.assessment) {
+        setActiveAssessmentResult(turnResponse);
+      }
+
       setMessages((prev) => [...prev, assistantMsg]);
-      setIsTyping(false);
-    }, 500);
-  };
-
-  // Test / Dev Control: Inject one of the 3 frozen assessment mock outcomes
-  const handleInjectSampleOutcome = (outcomeType: 'eligible' | 'not_eligible' | 'cannot_determine') => {
-    let mockResult: StandardTurnResponse;
-    if (outcomeType === 'eligible') {
-      mockResult = isHindi ? mockEligibleResponse : mockEligibleResponseEn;
-    } else if (outcomeType === 'not_eligible') {
-      mockResult = isHindi ? mockNotEligibleResponse : mockNotEligibleResponseEn;
-    } else {
-      mockResult = isHindi ? mockCannotDetermineResponse : mockCannotDetermineResponseEn;
-    }
-
-    setActiveAssessmentResult(mockResult);
-
-    const userSimulatedPrompt: Message = {
-      id: `usr-test-${Date.now()}`,
-      role: 'user',
-      text:
-        outcomeType === 'eligible'
-          ? isHindi
-            ? '[परीक्षण इनपुट] मैं 18+ महिला हूँ, कोई LPG नहीं है।'
-            : '[Test Input] I am an 18+ woman, no LPG connection in household.'
-          : outcomeType === 'not_eligible'
-          ? isHindi
-            ? '[परीक्षण इनपुट] मेरे घर में पहले से गैस कनेक्शन है।'
-            : '[Test Input] We already have an active gas cylinder connection.'
+    } catch (err: unknown) {
+      // Preserve user input text so they can retry without re-typing
+      setInputText(textToSend);
+      const message =
+        err instanceof ApiServiceError
+          ? err.message
           : isHindi
-          ? '[परीक्षण इनपुट] अभी स्पष्ट नहीं है कि परिवार में गैस कनेक्शन है या नहीं।'
-          : '[Test Input] Unclear whether our household already has an LPG connection.',
-    };
-
-    const assistantAssessmentReply: Message = {
-      id: `ast-test-${Date.now()}`,
-      role: 'assistant',
-      text: mockResult.answer.text,
-      assessmentResult: mockResult,
-    };
-
-    setMessages((prev) => [...prev, userSimulatedPrompt, assistantAssessmentReply]);
+            ? 'सर्वर से संपर्क करने में समस्या आई। आपका संदेश सुरक्षित है, कृपया पुनः प्रयास करें।'
+            : 'Could not connect to the backend server. Your input has been preserved, please retry.';
+      setApiErrorMessage(message);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   // Suggested questions in empty/initial state
   const suggestedQueries = isHindi
     ? [
-        'उज्ज्वला योजना के पात्रता नियम क्या हैं?',
-        'आवेदन के लिए कौन-से दस्तावेज़ चाहिए?',
-        'कहाँ जाकर आवेदन करना होगा?',
-      ]
+      'उज्ज्वला योजना के पात्रता नियम क्या हैं?',
+      'आवेदन के लिए कौन-से दस्तावेज़ चाहिए?',
+      'कहाँ जाकर आवेदन करना होगा?',
+    ]
     : [
-        'What are the eligibility criteria for PMUY?',
-        'What documents are needed to apply?',
-        'Where can I submit the application?',
-      ];
+      'What are the eligibility criteria for PMUY?',
+      'What documents are needed to apply?',
+      'Where can I submit the application?',
+    ];
 
   // ==========================================
   // VOICE MODE (Siri-Style Floating Circle)
@@ -266,7 +285,7 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
       recognition.interimResults = false;
       recognition.lang = isHindi ? 'hi-IN' : 'en-IN';
 
-      recognition.onresult = (event: unknown) => {
+      recognition.onresult = async (event: unknown) => {
         if (!isMountedRef.current) return;
         const speechEvent = event as { results: { 0: { 0: { transcript: string } } } };
         const transcript = speechEvent.results?.[0]?.[0]?.transcript;
@@ -285,58 +304,97 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
           };
           setMessages((prev) => [...prev, userMsg]);
 
-          // Prepare assistant mock reply
-          setTimeout(() => {
-            if (!isMountedRef.current) return;
-            const reply = getMockReply(cleanTranscript);
+          try {
+            let currentSessionId = sessionId;
+            if (!currentSessionId) {
+              const created = await createSession({ language, mode: 'voice' });
+              currentSessionId = created.session_id;
+              setSessionId(currentSessionId);
+            }
+
+            const turnResponse = await submitTextTurn(
+              {
+                session_id: currentSessionId,
+                text: cleanTranscript,
+              },
+              'awaiting',
+              language,
+            );
+
+            const replyText =
+              turnResponse.answer?.text ||
+              (isHindi ? 'उत्तर प्राप्त हुआ।' : 'Response received.');
             const assistantMsg: Message = {
               id: `ast-${Date.now()}`,
               role: 'assistant',
-              text: reply,
+              text: replyText,
+              assessmentResult: turnResponse.assessment ? turnResponse : null,
             };
+
+            if (turnResponse.assessment) {
+              setActiveAssessmentResult(turnResponse);
+            }
+
             setMessages((prev) => [...prev, assistantMsg]);
-            speakAssistantReply(reply);
-          }, 600);
+            speakAssistantReply(replyText);
+          } catch (err: unknown) {
+            setVoiceState('error');
+            const msg =
+              err instanceof ApiServiceError
+                ? err.message
+                : isHindi
+                  ? 'सर्वर से संपर्क विफल रहा।'
+                  : 'Server connection failed.';
+            setVoiceErrorMessage(msg);
+          }
         } else {
-          setVoiceState('idle');
+          setVoiceState('error');
+          setVoiceErrorMessage(
+            isHindi
+              ? 'आवाज़ समझ नहीं आई। कृपया दोबारा बोलें।'
+              : 'Could not understand speech. Please try again.'
+          );
         }
       };
 
       recognition.onerror = (event: unknown) => {
         if (!isMountedRef.current) return;
         const errEvent = event as { error?: string };
-        const errCode = errEvent.error;
-
-        if (errCode === 'no-speech') {
-          setVoiceState('idle');
-          return;
-        }
-
         setVoiceState('error');
-        setVoiceErrorMessage(
-          errCode === 'not-allowed'
-            ? isHindi
-              ? 'माइक्रोफ़ोन की अनुमति अस्वीकृत है। कृपया ब्राउज़र सेटिंग्स में अनुमति दें।'
-              : 'Microphone permission denied. Please allow microphone access.'
-            : isHindi
-            ? 'आवाज़ पहचानने में समस्या आई। पुनः प्रयास करें या लिखकर पूछें।'
-            : 'Error recognizing speech. Try again or switch to text mode.'
-        );
+        if (errEvent.error === 'not-allowed') {
+          setVoiceErrorMessage(
+            isHindi
+              ? 'माइक्रोफ़ोन की अनुमति अस्वीकृत हुई। कृपया अनुमति दें या टेक्स्ट मोड पर जाएँ।'
+              : 'Microphone permission was denied. Please allow mic or switch to Text Mode.'
+          );
+        } else if (errEvent.error === 'no-speech') {
+          setVoiceErrorMessage(
+            isHindi
+              ? 'कोई आवाज़ नहीं सुनी गई। कृपया माइक दबाकर बोलें।'
+              : 'No speech was detected. Please tap the orb and speak.'
+          );
+        } else {
+          setVoiceErrorMessage(
+            isHindi
+              ? 'पहचान में त्रुटि हुई। कृपया पुनः प्रयास करें।'
+              : 'Speech recognition error. Please try again.'
+          );
+        }
       };
 
       recognition.onend = () => {
-        if (isMountedRef.current && voiceState === 'listening') {
-          setVoiceState('idle');
+        if (isMountedRef.current) {
+          setVoiceState((current) => (current === 'listening' ? 'idle' : current));
         }
       };
 
-      setVoiceState('listening');
       recognition.start();
+      setVoiceState('listening');
     } catch {
       setVoiceState('error');
       setVoiceErrorMessage(
         isHindi
-          ? 'माइक्रोफ़ोन प्रारंभ नहीं हो सका।'
+          ? 'माइक्रोफ़ोन शुरू करने में समस्या आई।'
           : 'Could not start microphone.'
       );
     }
@@ -403,7 +461,7 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
     }
   };
 
-  // Get the latest assistant message for Voice Mode caption
+  // Get the last assistant message for the Voice Mode caption
   const latestAssistantMessage = [...messages].reverse().find((m) => m.role === 'assistant');
 
   return (
@@ -422,30 +480,22 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
           <span className="text-xs font-semibold text-slate-800">
             {isHindi ? 'योजना मित्र सहायक' : 'Yojana Mitra Assistant'}
           </span>
+          {sessionId && (
+            <span className="text-[10px] bg-stone-100 text-stone-500 font-mono px-1.5 py-0.5 rounded border border-stone-200">
+              {sessionId}
+            </span>
+          )}
         </div>
-
-        {/* View Active Assessment Result Button (Visible when assessment data exists) */}
-        {activeAssessmentResult && (
-          <button
-            type="button"
-            onClick={() => onViewResult(activeAssessmentResult)}
-            className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-full text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-          >
-            <span>📊</span>
-            <span>{isHindi ? 'परिणाम देखें' : 'View Result'}</span>
-          </button>
-        )}
 
         {/* Toggle Pills: Text vs Voice */}
         <div className="inline-flex rounded-full bg-stone-100 p-0.5 border border-stone-200">
           <button
             type="button"
             onClick={() => handleSwitchMode('text')}
-            className={`px-3 py-1 text-xs font-semibold rounded-full transition-all flex items-center gap-1.5 ${
-              mode === 'text'
+            className={`px-3 py-1 text-xs font-semibold rounded-full transition-all flex items-center gap-1.5 ${mode === 'text'
                 ? 'bg-slate-900 text-white shadow-xs'
                 : 'text-stone-600 hover:text-stone-900'
-            }`}
+              }`}
           >
             <span>⌨️</span>
             <span>{isHindi ? 'लिखकर (Text)' : 'Text'}</span>
@@ -453,11 +503,10 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
           <button
             type="button"
             onClick={() => handleSwitchMode('voice')}
-            className={`px-3 py-1 text-xs font-semibold rounded-full transition-all flex items-center gap-1.5 ${
-              mode === 'voice'
+            className={`px-3 py-1 text-xs font-semibold rounded-full transition-all flex items-center gap-1.5 ${mode === 'voice'
                 ? 'bg-amber-600 text-white shadow-xs'
                 : 'text-stone-600 hover:text-stone-900'
-            }`}
+              }`}
           >
             <span>🎙️</span>
             <span>{isHindi ? 'बोलकर (Voice)' : 'Voice'}</span>
@@ -465,33 +514,33 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
         </div>
       </div>
 
-      {/* Dev / Test Scenarios Bar (Clearly labeled MOCK / TEST DATA) */}
-      <div className="bg-amber-50/90 border-b border-amber-200 px-4 py-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px] shrink-0">
-        <div className="flex items-center gap-1.5 font-bold text-amber-900 uppercase tracking-wider">
-          <span className="bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded text-[10px]">MOCK / TEST DATA</span>
-          <span>{isHindi ? 'परिणाम सिमुलेशन:' : 'Simulate Outcome:'}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
+      {/* Development & Verification Controls: Test Outcome Injector Bar (Labeled MOCK / TEST DATA) */}
+      <div className="bg-amber-50/90 border-b border-amber-200 px-4 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <span className="font-semibold text-amber-900 flex items-center gap-1 text-[11px]">
+          <span>🧪</span>
+          <span>{isHindi ? 'नमूना मूल्यांकन परिणाम (MOCK / TEST DATA):' : 'Sample Outcomes (MOCK / TEST DATA):'}</span>
+        </span>
+        <div className="flex items-center gap-1.5 text-[11px]">
           <button
             type="button"
             onClick={() => handleInjectSampleOutcome('eligible')}
-            className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 hover:bg-emerald-200 font-semibold border border-emerald-300 transition-colors"
+            className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 hover:bg-emerald-200 font-semibold border border-emerald-300 transition-colors cursor-pointer active:scale-95"
           >
-            ✅ {isHindi ? 'पात्र' : 'Eligible'}
+            ✅ {isHindi ? 'पात्र (Likely Eligible)' : 'Eligible'}
           </button>
           <button
             type="button"
             onClick={() => handleInjectSampleOutcome('not_eligible')}
-            className="px-2 py-0.5 rounded bg-rose-100 text-rose-800 hover:bg-rose-200 font-semibold border border-rose-300 transition-colors"
+            className="px-2 py-0.5 rounded bg-rose-100 text-rose-800 hover:bg-rose-200 font-semibold border border-rose-300 transition-colors cursor-pointer active:scale-95"
           >
-            ⚠️ {isHindi ? 'अपात्र' : 'Not Eligible'}
+            ⚠️ {isHindi ? 'अपात्र (Not Eligible)' : 'Not Eligible'}
           </button>
           <button
             type="button"
             onClick={() => handleInjectSampleOutcome('cannot_determine')}
-            className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 hover:bg-amber-200 font-semibold border border-amber-300 transition-colors"
+            className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 hover:bg-amber-200 font-semibold border border-amber-300 transition-colors cursor-pointer active:scale-95"
           >
-            ❓ {isHindi ? 'अनिर्धारित' : 'Cannot Determine'}
+            ❓ {isHindi ? 'अनिर्धारित (Cannot Determine)' : 'Cannot Determine'}
           </button>
         </div>
       </div>
@@ -516,6 +565,26 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
             ))}
 
             {isTyping && <TypingIndicator language={language} />}
+
+            {/* API Error Notification Banner */}
+            {apiErrorMessage && (
+              <div className="bg-red-50 border border-red-200 text-red-800 p-3 rounded-xl text-xs flex items-start gap-2 my-2 shadow-2xs">
+                <span className="text-sm">⚠️</span>
+                <div className="flex-1 space-y-1">
+                  <p className="font-semibold text-red-900">
+                    {isHindi ? 'अनुरोध विफल रहा' : 'Request Failed'}
+                  </p>
+                  <p>{apiErrorMessage}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setApiErrorMessage(null)}
+                  className="text-red-500 hover:text-red-800 font-bold p-1"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
 
             {/* Suggested Queries Chips (Rendered below initial welcome) */}
             {messages.length === 1 && !isTyping && (
@@ -566,38 +635,30 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
             </div>
           </div>
 
-          {/* Pulsing Siri-Style Interactive Orb */}
-          <div className="my-auto flex flex-col items-center justify-center relative">
-            {/* Ambient Background Glow Layer */}
-            <div
-              className={`absolute w-64 h-64 rounded-full filter blur-2xl opacity-40 transition-all duration-700 pointer-events-none ${
-                voiceState === 'listening'
-                  ? 'bg-rose-400 scale-125'
-                  : voiceState === 'processing'
-                  ? 'bg-amber-400 scale-110'
-                  : voiceState === 'speaking'
-                  ? 'bg-emerald-400 scale-135'
-                  : 'bg-stone-300 scale-90'
-              }`}
-            />
-
-            {/* Ripple Pulse Rings (Active when listening or speaking) */}
-            {(voiceState === 'listening' || voiceState === 'speaking') && (
+          {/* Central Siri-Style Floating Orb */}
+          <div className="relative flex items-center justify-center my-auto py-8">
+            {/* Outer Expanding Waves (Listening State) */}
+            {voiceState === 'listening' && (
               <>
-                <div
-                  className={`absolute w-48 h-48 rounded-full border-2 border-current animate-ping opacity-25 pointer-events-none ${
-                    voiceState === 'listening' ? 'text-rose-500' : 'text-emerald-500'
-                  }`}
-                />
-                <div
-                  className={`absolute w-56 h-56 rounded-full border border-current animate-pulse opacity-20 pointer-events-none ${
-                    voiceState === 'listening' ? 'text-rose-400' : 'text-emerald-400'
-                  }`}
-                />
+                <div className="absolute w-56 h-56 rounded-full bg-amber-400/20 animate-ping [animation-duration:2s]" />
+                <div className="absolute w-44 h-44 rounded-full bg-orange-400/30 animate-pulse [animation-duration:1.5s]" />
               </>
             )}
 
-            {/* Main Interactive Button Orb */}
+            {/* Glowing Rings (Speaking State) */}
+            {voiceState === 'speaking' && (
+              <>
+                <div className="absolute w-52 h-52 rounded-full bg-indigo-500/20 animate-pulse [animation-duration:1.2s]" />
+                <div className="absolute w-40 h-40 rounded-full bg-amber-500/30 animate-ping [animation-duration:2.5s]" />
+              </>
+            )}
+
+            {/* Processing Spinner Ring */}
+            {voiceState === 'processing' && (
+              <div className="absolute w-40 h-40 rounded-full border-4 border-amber-500/30 border-t-amber-600 animate-spin" />
+            )}
+
+            {/* The Interactive Floating Orb Core */}
             <button
               type="button"
               onClick={() => {
@@ -609,31 +670,35 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
                   handleStartVoiceListening();
                 }
               }}
+              className={`relative z-10 w-32 h-32 rounded-full flex flex-col items-center justify-center transition-all duration-300 shadow-xl cursor-pointer active:scale-95 ${voiceState === 'listening'
+                  ? 'bg-gradient-to-tr from-amber-500 via-orange-500 to-amber-300 ring-4 ring-amber-400/60 shadow-amber-500/50 scale-105'
+                  : voiceState === 'speaking'
+                    ? 'bg-gradient-to-tr from-slate-900 via-indigo-900 to-amber-600 ring-4 ring-indigo-400/60 shadow-indigo-500/50 scale-105'
+                    : voiceState === 'processing'
+                      ? 'bg-gradient-to-tr from-amber-600 to-slate-800 scale-95 opacity-90'
+                      : voiceState === 'error'
+                        ? 'bg-gradient-to-tr from-red-600 to-amber-700 ring-4 ring-red-400/50'
+                        : 'bg-gradient-to-tr from-slate-900 via-slate-800 to-amber-600 hover:scale-105 shadow-slate-900/40 ring-4 ring-white'
+                }`}
               aria-label={
                 voiceState === 'listening'
                   ? isHindi
                     ? 'सुनना बंद करें'
                     : 'Stop listening'
-                  : voiceState === 'speaking'
-                  ? isHindi
-                    ? 'आवाज़ रोकें'
-                    : 'Stop speaking'
                   : isHindi
-                  ? 'बोलना शुरू करें'
-                  : 'Start speaking'
+                    ? 'बोलने के लिए टैप करें'
+                    : 'Tap to speak'
               }
-              className={`relative z-10 w-36 h-36 rounded-full flex flex-col items-center justify-center shadow-2xl transition-all duration-300 active:scale-95 cursor-pointer ${
-                voiceState === 'listening'
-                  ? 'bg-gradient-to-tr from-rose-500 to-amber-500 scale-110 ring-4 ring-rose-200'
-                  : voiceState === 'processing'
-                  ? 'bg-gradient-to-tr from-amber-400 to-amber-600 animate-spin ring-4 ring-amber-200'
-                  : voiceState === 'speaking'
-                  ? 'bg-gradient-to-tr from-emerald-500 to-teal-600 scale-105 ring-4 ring-emerald-200'
-                  : 'bg-gradient-to-tr from-stone-800 to-stone-900 hover:scale-105 ring-4 ring-stone-200'
-              }`}
             >
-              <span className="text-3xl text-white">
-                {voiceState === 'listening' ? '🛑' : voiceState === 'speaking' ? '🔊' : '🎙️'}
+              {/* Inner Glowing Core Icon */}
+              <span className="text-3xl text-white drop-shadow-md">
+                {voiceState === 'listening'
+                  ? '⏹'
+                  : voiceState === 'speaking'
+                    ? '🔊'
+                    : voiceState === 'processing'
+                      ? '⏳'
+                      : '🎙️'}
               </span>
               <span className="text-[10px] text-white/90 font-medium mt-1 uppercase tracking-wider">
                 {voiceState === 'listening'
@@ -641,12 +706,12 @@ export const ChatVoiceScreen: React.FC<ChatVoiceScreenProps> = ({
                     ? 'रोकें'
                     : 'Stop'
                   : voiceState === 'speaking'
-                  ? isHindi
-                    ? 'सुनें'
-                    : 'Playing'
-                  : isHindi
-                  ? 'टैप करें'
-                  : 'Tap'}
+                    ? isHindi
+                      ? 'सुनें'
+                      : 'Playing'
+                    : isHindi
+                      ? 'टैप करें'
+                      : 'Tap'}
               </span>
             </button>
           </div>

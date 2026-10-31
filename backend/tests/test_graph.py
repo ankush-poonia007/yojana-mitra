@@ -48,47 +48,73 @@ def test_workflow_state_contract_strictly_11_keys():
 # =====================================================================
 
 def test_eligibility_adapter_always_returns_cannot_determine_empty_answers():
-    """Verify eligibility adapter returns cannot_determine with pending handoff message for empty answers."""
+    """Verify eligibility adapter returns cannot_determine with missing fields for empty answers."""
     result = eligibility_adapter.evaluate(scheme_id="pmuy", answers={})
     assert result["result"] == "cannot_determine"
-    assert "नियम इंजन एकीकरण लंबित है" in result["reasons"][0]
-    assert "preliminary_answers" in result["missing_information"]
+    assert len(result["missing_information"]) > 0
+    assert "applicant_is_woman" in result["missing_information"]
 
 
-def test_eligibility_adapter_never_evaluates_rules_or_returns_likely_eligible():
-    """Verify eligibility adapter never returns likely_eligible even with complete passing answers."""
+def test_eligibility_adapter_evaluates_passing_answers_as_likely_eligible():
+    """Verify eligibility adapter evaluates complete passing answers as likely_eligible."""
     answers = {
         "household_has_lpg": False,
         "applicant_is_woman": True,
         "age_18_or_above": True,
+        "citizen_and_resident": True,
+        "dwelling_has_png": False,
+        "poor_household_declaration": True,
+        "deprivation_criteria_met": True,
     }
     result = eligibility_adapter.evaluate(scheme_id="pmuy", answers=answers)
-    assert result["result"] == "cannot_determine"
-    assert result["result"] != "likely_eligible"
-    assert "नियम इंजन एकीकरण लंबित है" in result["reasons"][0]
+    assert result["result"] == "likely_eligible"
+    assert len(result["reasons"]) > 0
+    assert len(result["missing_information"]) == 0
 
 
-def test_eligibility_adapter_never_evaluates_rules_or_returns_likely_not_eligible():
-    """Verify eligibility adapter never evaluates R01/R03 disqualifications in Round 1 stub."""
+def test_eligibility_adapter_evaluates_disqualifying_answers_as_likely_not_eligible():
+    """Verify eligibility adapter evaluates disqualifying answers as likely_not_eligible."""
     disqualifying_answers = {
         "household_has_lpg": True,
-        "applicant_is_woman": False,
-        "age_18_or_above": False,
+        "applicant_is_woman": True,
+        "age_18_or_above": True,
     }
     result = eligibility_adapter.evaluate(scheme_id="pmuy", answers=disqualifying_answers)
-    assert result["result"] == "cannot_determine"
-    assert result["result"] != "likely_not_eligible"
-    assert "नियम इंजन एकीकरण लंबित है" in result["reasons"][0]
+    assert result["result"] == "likely_not_eligible"
+    assert len(result["reasons"]) > 0
 
 
 @pytest.mark.asyncio
-async def test_eligibility_seam_node_returns_cannot_determine():
-    """Verify Phase B node always returns cannot_determine through the adapter seam."""
+async def test_eligibility_seam_node_returns_cannot_determine_on_missing_answers():
+    """Verify Phase B node returns cannot_determine through the adapter seam for empty answers."""
     state: YojanaWorkflowState = {
         "session_id": "ses_test_elig",
         "language": "hi",
         "input_type": "text",
         "user_text": "क्या मैं पात्र हूँ?",
+        "intent": "eligibility_interview",
+        "scheme_id": "pmuy",
+        "eligibility_answers": {},
+        "retrieved_evidence": [],
+        "assessment": None,
+        "response": {},
+        "error": None,
+    }
+
+    result = await eligibility_seam_node(state)
+    assert result["assessment"] is not None
+    assert result["assessment"]["result"] == "cannot_determine"
+    assert len(result["assessment"]["missing_information"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_eligibility_seam_node_evaluates_disqualification():
+    """Verify Phase B node returns likely_not_eligible for disqualifying answers."""
+    state: YojanaWorkflowState = {
+        "session_id": "ses_test_elig_disq",
+        "language": "hi",
+        "input_type": "text",
+        "user_text": "मेरे पास पहले से गैस है",
         "intent": "eligibility_interview",
         "scheme_id": "pmuy",
         "eligibility_answers": {"household_has_lpg": True},
@@ -100,8 +126,7 @@ async def test_eligibility_seam_node_returns_cannot_determine():
 
     result = await eligibility_seam_node(state)
     assert result["assessment"] is not None
-    assert result["assessment"]["result"] == "cannot_determine"
-    assert "नियम इंजन एकीकरण लंबित है" in result["assessment"]["reasons"][0]
+    assert result["assessment"]["result"] == "likely_not_eligible"
 
 
 # =====================================================================
@@ -379,7 +404,7 @@ async def test_run_turn_workflow_deterministic_fallback_when_gemini_unavailable(
     with patch("app.graph.nodes.response_formatting.gemini_client.generate", side_effect=RuntimeError("LLM unavailable")):
         final_state = await run_turn_workflow(initial_state)
 
-    assert final_state["assessment"]["result"] == "cannot_determine"
+    assert final_state["assessment"]["result"] == "likely_not_eligible"
     assert final_state["response"]["status"] == "awaiting_information"
     assert "सत्यापित आधिकारिक योजना दिशानिर्देश अभी उपलब्ध नहीं हैं" in final_state["response"]["answer"]["text"]
     assert final_state["response"]["sources"] == []
